@@ -1,52 +1,9 @@
 #include <iostream>
-#include <cmath>
-#include <vector>
-#include <SDL3/SDL.h>
+#include <memory>
+#include "include/Planet.h"
 
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
-const float G = 0.1f;
-
-struct Vector2 {
-    float m_x,m_y;
-    Vector2(float x = 0, float y = 0): m_x(x), m_y(y) {}
-    Vector2 operator-(const Vector2& other) const {
-        return Vector2(m_x - other.m_x, m_y - other.m_y);
-    }
-    Vector2 operator+(const Vector2& other) const {
-        return Vector2(m_x + other.m_x, m_y + other.m_y);
-    }
-    Vector2 operator*(float scalar) const {
-        return Vector2(m_x * scalar, m_y * scalar);
-    }
-};
-
-struct Planet {
-    Vector2 m_pos;
-    Vector2 m_vel;
-    float m_mass;
-    int m_radius;
-    Uint8 r, g, b;
-};
-
-Vector2 calculateGravity(const Planet& planet, const Planet& sun){
-    Vector2 diff = sun.m_pos - planet.m_pos;
-    float distance = std::sqrt(diff.m_x * diff.m_x + diff.m_y * diff.m_y);
-    if (distance < 1.0f) distance = 1.0f; // avoid divide by 0
-    float force = G * planet.m_mass * sun.m_mass / (distance * distance);
-    Vector2 direction = diff * (1.0f / distance); // normalization
-    return direction * (force / planet.m_mass); // a = F/m
-}
-
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius){
-    for(int x = -radius; x <= radius; x++){
-        for(int y = -radius; y <= radius; y++){
-            if ( x*x + y*y <= radius*radius) {
-                SDL_RenderPoint(renderer, centerX + x, centerY + y);
-            }
-        }
-    }
-}
+const int WINDOW_WIDTH = 1280;
+const int WINDOW_HEIGHT = 1024;
 
 int main(){
     if(SDL_Init(SDL_INIT_VIDEO) < 0){
@@ -71,38 +28,23 @@ int main(){
         return 1;
     }
 
-    Planet sun
-    {
-        {WINDOW_WIDTH/2, WINDOW_HEIGHT/2},
-        {0,0},
-        2000.0f,
-        50, 
-        255, 255, 0
-    };
-    
-    Planet earth
-    {
-        {WINDOW_WIDTH/2+200, WINDOW_HEIGHT/2},
-        {0, 1.0f}, 
-        1.0f, 
-        20, 
-        0, 0, 255
-    };
+    std::vector<std::unique_ptr<PhysicalObject>> objects;
 
-    Planet mars
-    {
-        {WINDOW_WIDTH/2+270, WINDOW_HEIGHT/2}, 
-        {0, 0.8f}, 
-        0.5f, 
-        15, 
-        255, 0, 0
-    };
+    objects.push_back(std::make_unique<Planet>("Sun",
+        Vector2{WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2}, Vector2{0,0}, 1300.0f, 50, 255, 255, 0)); 
 
-    std::vector<Planet> planets{earth, mars};
+        objects.push_back(std::make_unique<Planet>("Earth",
+            Vector2{WINDOW_WIDTH / 2 + 180, WINDOW_HEIGHT / 2}, Vector2{0,1.0f}, 1.0f, 5, 0, 0, 255)); 
+
+        objects.push_back(std::make_unique<Planet>("Mars",
+            Vector2{WINDOW_WIDTH / 2 + 220, WINDOW_HEIGHT / 2}, Vector2{0,0.9f}, 0.9f, 4, 255, 50, 0)); 
+
+        objects.push_back(std::make_unique<Planet>("Comet",
+            Vector2{WINDOW_WIDTH / 2 + 400, WINDOW_HEIGHT / 2}, Vector2{0,0.5f}, 10.0f, 2, 255, 0, 255)); 
 
     bool running = true;
     SDL_Event event;
-    const float dt = 0.1f; //time derivative
+    float dt = 0.1f; //time derivative
 
 
     while(running){
@@ -114,17 +56,9 @@ int main(){
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        //SUN
-        SDL_SetRenderDrawColor(renderer, sun.r, sun.g, sun.b , 255);
-        drawCircle(renderer, static_cast<int>(sun.m_pos.m_x), static_cast<int>(sun.m_pos.m_y), sun.m_radius);
-
-        for (auto& planet : planets){
-            Vector2 gravity = calculateGravity(planet, sun);
-            planet.m_vel = planet.m_vel + gravity * dt; // speed update
-            planet.m_pos = planet.m_pos + planet.m_vel * dt; // position update
-
-            SDL_SetRenderDrawColor(renderer, planet.r, planet.g, planet.b, 255);
-            drawCircle(renderer, static_cast<int>(planet.m_pos.m_x), static_cast<int>(planet.m_pos.m_y), planet.m_radius);
+        for (auto& object : objects){
+            object->update(dt, objects);
+            object->render(renderer);
         }
         
         SDL_RenderPresent(renderer);
